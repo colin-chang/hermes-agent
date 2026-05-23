@@ -632,7 +632,10 @@ def run_doctor(args):
                 default_model
                 and "/" in default_model
                 and provider_for_policy
+                # Custom-named providers (e.g. "custom:zenmux") are aggregators
+                # that accept vendor-prefixed model slugs, just like "custom".
                 and provider_for_policy not in providers_accepting_vendor_slugs
+                and not provider_for_policy.startswith("custom:")
             ):
                 check_warn(
                     f"model.default '{default_model}' uses a vendor/model slug but provider is '{provider_raw}'",

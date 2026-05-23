@@ -70,6 +70,15 @@ _CRON_INVISIBLE_CHARS = {
     '\u202a', '\u202b', '\u202c', '\u202d', '\u202e',
 }
 
+# ZWJ (U+200D) between emoji-range characters is legitimate Unicode emoji
+# sequencing (e.g. 👩🏼‍⚖️). Strip these before invisible-char scanning so
+# we only flag ZWJ that appears in suspicious non-emoji contexts.
+_EMOJI_ZWJ_RE = re.compile(
+    r'(?<=[\U0001F300-\U0001FAFF\u2600-\u27BF\uFE00-\uFE0F])'
+    r'\u200d'
+    r'(?=[\U0001F300-\U0001FAFF\u2600-\u27BF\uFE00-\uFE0F])'
+)
+
 
 def _scan_cron_prompt(prompt: str) -> str:
     """Scan a cron prompt for critical threats. Returns error string if blocked, else empty."""
@@ -84,6 +93,11 @@ def _scan_cron_prompt(prompt: str) -> str:
         # Allow the bundled GitHub skill fallback shape without opening a
         # blanket exemption for arbitrary Authorization-header exfiltration.
         prompt_to_scan = prompt.replace(github_auth_header.group(0), "curl https://api.github.com/user")
+    # Strip U+200D (ZWJ) used in legitimate emoji sequences before scanning.
+    # Emoji ZWJ sequences (e.g. 👩🏼‍⚖️) are part of the Unicode standard and
+    # are NOT injection vectors. We only flag ZWJ that appears outside of
+    # standard emoji contexts.
+    prompt_to_scan = _EMOJI_ZWJ_RE.sub('', prompt_to_scan)
     for char in _CRON_INVISIBLE_CHARS:
         if char in prompt_to_scan:
             return f"Blocked: prompt contains invisible unicode U+{ord(char):04X} (possible injection)."

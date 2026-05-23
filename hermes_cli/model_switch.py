@@ -1515,10 +1515,10 @@ def list_authenticated_providers(
                     if fb:
                         models_list = list(fb)
 
-            # Prefer the endpoint's live /models list when credentials are
-            # available, unless the provider explicitly opts out via
-            # discover_models: false (e.g. dedicated endpoints that expose
-            # the entire aggregator catalog via /models).
+            # Prefer the curated list when available; only fall back to
+            # live discovery if the user hasn't supplied an explicit list
+            # (via ``discover_models: false`` to suppress discovery on
+            # aggregator endpoints that expose their whole catalog via /models).
             api_key = str(ep_cfg.get("api_key", "") or "").strip()
             if not api_key:
                 key_env = str(ep_cfg.get("key_env", "") or "").strip()
@@ -1526,7 +1526,8 @@ def list_authenticated_providers(
             discover = ep_cfg.get("discover_models", True)
             if isinstance(discover, str):
                 discover = discover.lower() not in {"false", "no", "0"}
-            if api_url and api_key and discover:
+            # Only run live discovery when there is no curated model list from config
+            if api_url and api_key and discover and not models_list:
                 try:
                     from hermes_cli.models import fetch_api_models
                     live_models = fetch_api_models(api_key, api_url)
@@ -1686,9 +1687,10 @@ def list_authenticated_providers(
             _grp_url_norm = _pair_key[1]
             if _grp_url_norm and _grp_url_norm in _builtin_endpoints:
                 continue
-            # Live model discovery from custom provider endpoints (matches
-            # Section 3 behavior for user ``providers:`` entries).
-            if api_url and api_key:
+            # Live model discovery — only when the user has NOT supplied
+            # a curated model list in config.yaml (models: field).
+            # A non-empty curated list takes priority over live discovery.
+            if not grp["models"] and api_url and api_key:
                 try:
                     from hermes_cli.models import fetch_api_models
 
